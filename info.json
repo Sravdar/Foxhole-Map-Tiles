@@ -1,9 +1,7 @@
 {
   "manifest_version": 1,
-  "generated_at": "2026-09-07T08:03:08Z",
+  "generated_at": "2026-09-23T14:59:40Z",
   "hash_algorithm": "sha256",
-  "detailed": false,
-  "detail_file": "info.files.json",
   "hash": "7279d63c52ecfce7ef236641e92ab48979be7174ef4f0075e16597307af1b5f0",
   "size": 325894239,
   "item_count": 21900,
@@ -12,6 +10,7 @@
       "hash": "aad4c0264a0fdd0a020cf351c4e4ad2125fd784d86f6a2d0a2dc21f6e2f6abb7",
       "size": 14389504,
       "item_count": 5461,
+      "detail_file": "info.fly.height.tiles.json",
       "folders": {
         "0": {
           "hash": "84486664deaca9fcdcddce117151a358428a5602407ae9b861342c023feecec4",
@@ -61,12 +60,14 @@
       "hash": "97d69d552fa75c9cde7872bdefc4dbe76f839f131eb1431c491b2dd56b04d026",
       "size": 1390391,
       "item_count": 54,
+      "detail_file": "info.map.icons.json",
       "folders": {}
     },
     "Sat Tiles": {
       "hash": "fd26fb11bf0840520be11b69f9fa0c9c73285fe04b6cef77e28bc5c02af3aad0",
       "size": 110643595,
       "item_count": 5461,
+      "detail_file": "info.sat.tiles.json",
       "folders": {
         "0": {
           "hash": "123e86c86a83e65b5c8e55cd550824cf9f1641d948f44d2438f16d9ac1e1703e",
@@ -116,6 +117,7 @@
       "hash": "af4a9f1ed5bd9f2de6f4c167907f01df0bc90f3042a8e5d213118c668f42c28e",
       "size": 103619450,
       "item_count": 5463,
+      "detail_file": "info.tiles.json",
       "folders": {
         "0": {
           "hash": "305386488647c0d3dfa188e18f7512944c14f457ae8214e6bf73076654697b8b",
@@ -165,6 +167,7 @@
       "hash": "800604d58a36598626f532bafef3f48e010bc046d2a85505fb3a364fb9ddd597",
       "size": 95851299,
       "item_count": 5461,
+      "detail_file": "info.tree.tiles.json",
       "folders": {
         "0": {
           "hash": "cf1231028a880390f204e121bbc9b19bd6dcbb73709f0f3a0e7fdff7821fc903",

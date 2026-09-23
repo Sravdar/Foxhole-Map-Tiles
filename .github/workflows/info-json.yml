@@ -1,4 +1,5 @@
-# Regenerates the manifests (info.json / info.files.json) whenever the tiles change
+# Regenerates the manifests (info.json + one info.<folder>.json per top-level folder)
+# whenever the tiles change
 # and publishes them on the TARGET_BRANCH, without touching any tile file.
 #
 # To configure it, edit the env: block below. If you change SOURCE_BRANCH you must
@@ -14,8 +15,10 @@ on:
 env:
   SOURCE_BRANCH: add-info-json-test-source     # branch the tiles live on
   TARGET_BRANCH: add-info-json-test-target  # branch the manifests are published to
-  INFO_FILE: info.json          # folder level manifest, few KB
-  DETAIL_FILE: info.files.json  # per file manifest, few MB
+  # Manifest names: PREFIX.json is the folder level manifest (few KB), and
+  # PREFIX.<folder>.json holds each top-level folder's files (~1 MB each),
+  # e.g. info.tiles.json, info.sat.tiles.json.
+  MANIFEST_PREFIX: info
 
 permissions:
   contents: write
@@ -39,7 +42,7 @@ jobs:
       - name: Generate manifests
         run: |
           python3 .scripts/create_info_json.py --root . --out-dir "$RUNNER_TEMP/new" \
-            --info-name "$INFO_FILE" --detail-name "$DETAIL_FILE"
+            --prefix "$MANIFEST_PREFIX"
 
       # Grabs the manifests that are already published, to compare against.
       - name: Read published manifests
@@ -64,16 +67,18 @@ jobs:
             ref=""
           fi
 
-          # Copy each published manifest out of that branch. "git show branch:file"
-          # prints one file from a branch without checking the branch out.
-          for f in "$INFO_FILE" "$DETAIL_FILE"; do
-            rm -f "$RUNNER_TEMP/old/$f"
-            if [ -n "$ref" ]; then
-              # A failure here just means the branch has no manifest yet, which
-              # counts as "different" in the next step.
-              git show "$ref:$f" > "$RUNNER_TEMP/old/$f" 2>/dev/null || rm -f "$RUNNER_TEMP/old/$f"
-            fi
-          done
+          # Copy every published manifest out of that branch. "git ls-tree" lists
+          # the branch's root files, and "git show branch:file" prints one file
+          # from a branch without checking the branch out. Manifests of folders
+          # that were removed or renamed are copied too, so their removal counts as a change.
+          if [ -n "$ref" ]; then
+            git ls-tree --name-only "$ref" | while read -r f; do
+              case "$f" in
+                "$MANIFEST_PREFIX.json"|"$MANIFEST_PREFIX".*.json)
+                  git show "$ref:$f" > "$RUNNER_TEMP/old/$f" ;;
+              esac
+            done
+          fi
 
       # Decides whether anything is worth publishing. The compare script ignores
       # the generated_at timestamp, otherwise every run would look different and
@@ -82,12 +87,15 @@ jobs:
         id: compare
         run: |
           set -eu
-          changed=false
-          for f in "$INFO_FILE" "$DETAIL_FILE"; do
-            # The script exits 0 when the two files match, 1 when they differ.
-            python3 .scripts/compare_info_json.py "$RUNNER_TEMP/old/$f" "$RUNNER_TEMP/new/$f" || changed=true
-          done
-          echo "changed=$changed" >> "$GITHUB_OUTPUT"
+          # The script exits 0 when the folders match, 1 when they differ and
+          # 2 on an error, which must fail the run instead of publishing.
+          status=0
+          python3 .scripts/compare_info_json.py "$RUNNER_TEMP/old" "$RUNNER_TEMP/new" || status=$?
+          case $status in
+            0) echo "changed=false" >> "$GITHUB_OUTPUT" ;;
+            1) echo "changed=true" >> "$GITHUB_OUTPUT" ;;
+            *) exit "$status" ;;
+          esac
 
       # Builds the commit by hand instead of "git add" + "git commit", so all
       # of the tile files are never copied or rewritten. The commit reuses the
@@ -112,10 +120,20 @@ jobs:
           # Start from exactly what the source branch contains.
           git read-tree HEAD
 
-          # Store each manifest in the repository and put it in the file list.
+          # Drop any manifest already in that list (only possible when publishing
+          # onto the source branch), so manifests of removed folders go away.
+          git ls-files | while read -r f; do
+            case "$f" in
+              "$MANIFEST_PREFIX.json"|"$MANIFEST_PREFIX".*.json)
+                git update-index --force-remove "$f" ;;
+            esac
+          done
+
+          # Store each new manifest in the repository and put it in the file list.
           # 100644 is git's code for a normal, non executable file.
-          for f in "$INFO_FILE" "$DETAIL_FILE"; do
-            blob=$(git hash-object -w "$RUNNER_TEMP/new/$f")
+          for path in "$RUNNER_TEMP"/new/*.json; do
+            f=$(basename "$path")
+            blob=$(git hash-object -w "$path")
             git update-index --add --cacheinfo "100644,$blob,$f"
           done
 
@@ -135,5 +153,5 @@ jobs:
 
           # Create the commit and move the target branch to it. [skip ci] keeps
           # this push from triggering the workflow again.
-          commit=$(git commit-tree "$tree" "${parents[@]}" -m "chore: update $INFO_FILE [skip ci]")
+          commit=$(git commit-tree "$tree" "${parents[@]}" -m "chore: update $MANIFEST_PREFIX manifests [skip ci]")
           git push origin "$commit:refs/heads/$TARGET_BRANCH"
