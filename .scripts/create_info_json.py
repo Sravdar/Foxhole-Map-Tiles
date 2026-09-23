@@ -1,13 +1,21 @@
 #!/usr/bin/env python3
-"""Generate the info.json / info.files.json manifests for the tile folders.
+"""Generate the info.json manifest plus one per-file manifest per top-level folder.
 
 Root files and anything starting with "." are skipped. Every folder gets a hash
 built from its children's hashes, so a hash change points straight at what moved.
+
+info.json holds the folder tree only (hash, size, item_count). Each top-level
+folder entry names its own detail file, e.g. "Sat Tiles" -> info.sat.tiles.json,
+which holds that folder's full tree including every file. A client only has to
+fetch the detail files of the folders whose hash changed.
 """
+
 import argparse
 import hashlib
 import json
 import os
+import re
+import sys
 from datetime import datetime, timezone
 
 MANIFEST_VERSION = 1
@@ -39,7 +47,7 @@ def folder_node(path, skip_files=False):
     children += [("f", n, v) for n, v in files.items()]
     h = hashlib.sha256()
     for kind, name, node in sorted(children, key=lambda c: c[1]):
-        h.update(f"{kind} {node['hash']} {name}\n".encode("utf-8"))
+        h.update(f"{kind} {node['hash']} {name}\n".encode())
 
     return {
         "hash": h.hexdigest(),
@@ -62,19 +70,48 @@ def without_files(folders):
     }
 
 
-def document(root, generated_at, detailed, detail_name):
-    doc = {
+def detail_name(prefix, folder):
+    """ "Fly Height Tiles" -> "info.fly.height.tiles.json"."""
+    words = re.findall(r"[a-z0-9]+", folder.lower())
+    if not words:
+        sys.exit(f"cannot build a manifest name for folder {folder!r}")
+    return f"{prefix}.{'.'.join(words)}.json"
+
+
+def header(generated_at):
+    return {
         "manifest_version": MANIFEST_VERSION,
         "generated_at": generated_at,
         "hash_algorithm": "sha256",
-        "detailed": detailed,
     }
-    if not detailed:
-        doc["detail_file"] = detail_name
+
+
+def info_document(root, generated_at, names):
+    doc = header(generated_at)
     doc["hash"] = root["hash"]
     doc["size"] = root["size"]
     doc["item_count"] = root["item_count"]
-    doc["folders"] = root["folders"] if detailed else without_files(root["folders"])
+    doc["folders"] = {
+        name: {
+            "hash": n["hash"],
+            "size": n["size"],
+            "item_count": n["item_count"],
+            "detail_file": names[name],
+            "folders": without_files(n["folders"]),
+        }
+        for name, n in root["folders"].items()
+    }
+    return doc
+
+
+def detail_document(name, node, generated_at):
+    doc = header(generated_at)
+    doc["folder"] = name
+    doc["hash"] = node["hash"]
+    doc["size"] = node["size"]
+    doc["item_count"] = node["item_count"]
+    doc["folders"] = node["folders"]
+    doc["files"] = node["files"]
     return doc
 
 
@@ -89,24 +126,33 @@ def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--root", default=".", help="repository root to scan")
     p.add_argument("--out-dir", default=".", help="where to write the manifests")
-    p.add_argument("--info-name", default="info.json", help="folder-level manifest name")
-    p.add_argument("--detail-name", default="info.files.json", help="per-file manifest name")
+    p.add_argument(
+        "--prefix",
+        default="info",
+        help="manifest name prefix: PREFIX.json and PREFIX.<folder>.json",
+    )
     args = p.parse_args()
 
     root = folder_node(args.root, skip_files=True)
     generated_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-    os.makedirs(args.out_dir, exist_ok=True)
 
+    names = {name: detail_name(args.prefix, name) for name in root["folders"]}
+    clashes = {n for n in names.values() if list(names.values()).count(n) > 1}
+    if clashes:
+        sys.exit(f"folders map to the same manifest name: {sorted(clashes)}")
+
+    os.makedirs(args.out_dir, exist_ok=True)
     write_json(
-        os.path.join(args.out_dir, args.info_name),
-        document(root, generated_at, False, args.detail_name),
+        os.path.join(args.out_dir, f"{args.prefix}.json"),
+        info_document(root, generated_at, names),
         indent=2,
     )
-    write_json(
-        os.path.join(args.out_dir, args.detail_name),
-        document(root, generated_at, True, args.detail_name),
-        indent=None,
-    )
+    for name, node in root["folders"].items():
+        write_json(
+            os.path.join(args.out_dir, names[name]),
+            detail_document(name, node, generated_at),
+            indent=None,
+        )
     print(f"{root['item_count']} files, {root['size']} bytes, hash {root['hash']}")
 
 
