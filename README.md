@@ -19,24 +19,16 @@ Map and icon images are a property of Clapfoot Inc. and are used with their perm
 
 ## Update manifest
 
-The `with_json` branch carries generated manifests so apps can update only the tiles that
-actually changed. They are regenerated automatically whenever `master` is updated.
+The `with_json` branch carries generated manifests in the `.info` folder so apps can update only the tiles that actually changed. They are regenerated automatically whenever `master` is updated.
 
- - `info.json` (~7 KB) — hash, size and file count per folder. Each top-level folder also
-   names its `detail_file`.
- - One detail manifest per top-level folder (~600 KB each) — that folder's tree plus every
-   individual file's hash and size:
-   `info.tiles.json`, `info.sat.tiles.json`, `info.tree.tiles.json`,
-   `info.fly.height.tiles.json`, `info.map.icons.json`.
+ - `.info/info.json` (~7 KB) — hash, size and file count per folder. Each top-level folder also names its `detail_file`, relative to the `.info` folder.
+ - One detail manifest per top-level folder (~600 KB each) — that folder's tree plus every individual file's hash and size: `.info/info.tiles.json`, `.info/info.sat.tiles.json`, `.info/info.tree.tiles.json`, `.info/info.fly.height.tiles.json`, `.info/info.map.icons.json`.
 
 ```
-https://raw.githubusercontent.com/Kastow/Foxhole-Map-Tiles/with_json/info.json
-https://raw.githubusercontent.com/Kastow/Foxhole-Map-Tiles/with_json/info.sat.tiles.json
+https://raw.githubusercontent.com/Kastow/Foxhole-Map-Tiles/with_json/.info/info.json
+https://raw.githubusercontent.com/Kastow/Foxhole-Map-Tiles/with_json/.info/info.sat.tiles.json
 ```
 
-Suggested client flow: fetch `info.json`, compare the root `hash` with the stored one, and only
-when it differs compare each top-level folder's `hash`. For every folder that changed, fetch its
-`detail_file` and download the files whose hash changed. Subfolder hashes let you skip whole
-zoom levels before looking at individual files.
+Suggested client flow: fetch `info.json`, compare the root `hash` with the stored one, and only when it differs compare each top-level folder's `hash`. For every folder that changed, fetch its `detail_file` from `.info/` and download the files whose hash changed. Subfolder hashes let you skip whole zoom levels before looking at individual files.
 
 For detailed information check [.scripts/create_info_json.py](.scripts/create_info_json.py).
