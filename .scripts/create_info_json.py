@@ -8,6 +8,10 @@ info.json holds the folder tree only (hash, size, item_count). Each top-level
 folder entry names its own detail file, e.g. "Sat Tiles" -> info.sat.tiles.json,
 which holds that folder's full tree including every file. A client only has to
 fetch the detail files of the folders whose hash changed.
+
+All manifests are written into one folder (.info by default), so detail_file
+names are relative to info.json. That folder starts with "." and is therefore
+skipped by the scan.
 """
 
 import argparse
@@ -125,7 +129,7 @@ def write_json(path, doc, indent):
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--root", default=".", help="repository root to scan")
-    p.add_argument("--out-dir", default=".", help="where to write the manifests")
+    p.add_argument("--out-dir", default=".info", help="where to write the manifests")
     p.add_argument(
         "--prefix",
         default="info",
